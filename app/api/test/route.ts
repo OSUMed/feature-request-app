@@ -2,42 +2,44 @@ import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient({
-  log: ['query', 'info', 'warn', 'error'], // Enable detailed logging
+  log: ['query', 'error', 'warn'],
 });
 
 export async function GET() {
   try {
-    // Add null check for DATABASE_URL
-    const dbUrl = process.env.DATABASE_URL;
-    if (!dbUrl) {
-      throw new Error('DATABASE_URL environment variable is not defined');
-    }
-    console.log("Attempting DB connection to:", dbUrl.replace(/:\/\/.*@/, '://[REDACTED]@'));
-
-    // Fetch database details
-    const dbInfo = await prisma.$queryRaw`
-      SELECT 
-        version() AS postgres_version, 
-        current_database() AS database_name, 
-        inet_server_addr() AS server_ip,
-        inet_server_port() AS server_port
-    `;
-
-    console.log("✅ Connected to Database Server:", dbInfo);
-
+    // Try a simple query to test the connection
+    const testConnection = await prisma.$queryRaw`SELECT current_database(), current_user, version()`;
+    
+    // Also test a simple model query
+    const userCount = await prisma.user.count();
+    
     return NextResponse.json({ 
       success: true, 
       message: 'Database connection successful',
-      databaseInfo: dbInfo 
+      data: {
+        rawQuery: testConnection,
+        userCount,
+        databaseUrl: process.env.DATABASE_URL?.replace(/:[^:@]{1,}@/, ':****@'), // Hide password
+        nodeEnv: process.env.NODE_ENV,
+      }
     }, { status: 200 });
     
   } catch (error) {
-    console.error('❌ Database connection error:', error);
+    console.error('Database connection error:', error);
     
     return NextResponse.json({ 
       success: false, 
       message: 'Database connection failed',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? {
+        message: error.message,
+        name: error.name,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      } : 'Unknown error',
+      config: {
+        nodeEnv: process.env.NODE_ENV,
+        hasDbUrl: !!process.env.DATABASE_URL,
+        hasDirectUrl: !!process.env.DIRECT_URL,
+      }
     }, { status: 500 });
   } finally {
     await prisma.$disconnect();
