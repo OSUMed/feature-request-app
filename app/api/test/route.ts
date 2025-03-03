@@ -1,21 +1,38 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  log: ['query', 'info', 'warn', 'error'], // Enable detailed logging
+});
 
 export async function GET() {
   try {
-    // Try a simple query to test the connection
-    const testConnection = await prisma.$queryRaw`SELECT 1`;
-    
+    // Add null check for DATABASE_URL
+    const dbUrl = process.env.DATABASE_URL;
+    if (!dbUrl) {
+      throw new Error('DATABASE_URL environment variable is not defined');
+    }
+    console.log("Attempting DB connection to:", dbUrl.replace(/:\/\/.*@/, '://[REDACTED]@'));
+
+    // Fetch database details
+    const dbInfo = await prisma.$queryRaw`
+      SELECT 
+        version() AS postgres_version, 
+        current_database() AS database_name, 
+        inet_server_addr() AS server_ip,
+        inet_server_port() AS server_port
+    `;
+
+    console.log("✅ Connected to Database Server:", dbInfo);
+
     return NextResponse.json({ 
       success: true, 
       message: 'Database connection successful',
-      data: testConnection 
+      databaseInfo: dbInfo 
     }, { status: 200 });
     
   } catch (error) {
-    console.error('Database connection error:', error);
+    console.error('❌ Database connection error:', error);
     
     return NextResponse.json({ 
       success: false, 
@@ -25,4 +42,4 @@ export async function GET() {
   } finally {
     await prisma.$disconnect();
   }
-} 
+}
