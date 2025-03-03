@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 import prisma from "@/lib/prisma"
 import { z } from "zod"
+import { type Session } from "next-auth"
 
 const featureRequestSchema = z.object({
   title: z.string().min(1).max(100),
@@ -11,9 +12,9 @@ const featureRequestSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await getServerSession(authOptions) as Session | null
 
-    if (!session) {
+    if (!session?.user) {
       return NextResponse.json({ error: "You must be logged in to submit a feature request" }, { status: 401 })
     }
 
@@ -25,6 +26,19 @@ export async function POST(req: NextRequest) {
         title: validatedData.title,
         description: validatedData.description,
         userId: session.user.id,
+      },
+      include: {
+        user: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+        _count: {
+          select: {
+            upvotes: true,
+          },
+        },
       },
     })
 

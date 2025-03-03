@@ -42,7 +42,7 @@ export function FeatureRequestList() {
     return (
       <div className="space-y-4">
         {[...Array(3)].map((_, i) => (
-          <Card key={i}>
+          <Card key={i} data-testid="skeleton-card">
             <CardHeader>
               <Skeleton className="h-6 w-3/4" />
             </CardHeader>
